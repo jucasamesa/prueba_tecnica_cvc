@@ -3,6 +3,12 @@ Script principal para descargar imágenes del dataset de MercadoLibre.
 
 Este script lee el archivo training_data.csv, descarga las imágenes correspondientes
 y genera un nuevo dataset con las rutas de las imágenes descargadas.
+
+Ejemplo de como usar: python image_downloader.py \
+  --training-data "data/productive_data.csv" \
+  --images-dir "data/validation_images" \
+  --output-dir "data" \
+  --output-name "productive_images_dataset.csv"
 """
 
 import sys
@@ -79,11 +85,40 @@ class ImageDownloader:
     Clase principal para manejar la descarga de imágenes.
     """
     
-    def __init__(self):
-        """Inicializa el descargador de imágenes."""
+    def __init__(self, training_data_path: str = None, images_dir: str = None, output_dir: str = None):
+        """
+        Inicializa el descargador de imágenes.
+        
+        Args:
+            training_data_path (str, optional): Path al archivo CSV con datos de entrenamiento
+            images_dir (str, optional): Directorio donde guardar las imágenes descargadas
+            output_dir (str, optional): Directorio donde guardar el CSV de resultados
+        """
         self.logger = setup_logging()
         self.download_results: List[Dict[str, Any]] = []
         self.results_lock = threading.Lock()  # Lock para resultados thread-safe
+        
+        # Set custom paths or use defaults
+        if training_data_path:
+            self.training_data_path = Path(training_data_path)
+        else:
+            self.training_data_path = TRAINING_DATA_PATH
+            
+        if images_dir:
+            self.images_dir = Path(images_dir)
+            self.images_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            self.images_dir = IMAGES_DIR
+            
+        if output_dir:
+            self.output_dir = Path(output_dir)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
+        else:
+            self.output_dir = DATA_DIR
+            
+        self.logger.info(f"Training data: {self.training_data_path}")
+        self.logger.info(f"Images directory: {self.images_dir}")
+        self.logger.info(f"Output directory: {self.output_dir}")
         
     def load_training_data(self) -> pd.DataFrame:
         """
@@ -96,11 +131,11 @@ class ImageDownloader:
             FileNotFoundError: Si el archivo no existe
             ValueError: Si la estructura del archivo es inválida
         """
-        if not TRAINING_DATA_PATH.exists():
-            raise FileNotFoundError(f"No se encontró el archivo: {TRAINING_DATA_PATH}")
+        if not self.training_data_path.exists():
+            raise FileNotFoundError(f"No se encontró el archivo: {self.training_data_path}")
         
-        self.logger.info(f"Cargando datos desde: {TRAINING_DATA_PATH}")
-        df = pd.read_csv(TRAINING_DATA_PATH)
+        self.logger.info(f"Cargando datos desde: {self.training_data_path}")
+        df = pd.read_csv(self.training_data_path)
         
         # Validar estructura
         is_valid, message = validate_csv_structure(df)
@@ -129,7 +164,7 @@ class ImageDownloader:
         # Construir URL y nombre de archivo
         image_url = build_image_url(picture_id)
         filename = generate_filename(item_id, picture_id)
-        filepath = IMAGES_DIR / filename
+        filepath = self.images_dir / filename
         
         # Información del resultado
         result = {
@@ -139,7 +174,7 @@ class ImageDownloader:
             'picture_id': picture_id,
             'correct_background': row['correct_background?'],
             'image_url': image_url,
-            'local_path': str(filepath.relative_to(DATA_DIR.parent)),
+            'local_path': str(filepath.relative_to(self.output_dir.parent)),
             'filename': filename,
             'download_success': False,
             'error_message': None,
@@ -340,12 +375,13 @@ class ImageDownloader:
             for error, count in sorted(error_counts.items(), key=lambda x: x[1], reverse=True)[:5]:
                 self.logger.info(f"  {error}: {count} veces")
     
-    def run(self, limit: int = None) -> str:
+    def run(self, limit: int = None, output_filename: str = None) -> str:
         """
         Ejecuta el proceso completo de descarga.
         
         Args:
             limit (int, optional): Límite de imágenes a procesar (para testing)
+            output_filename (str, optional): Nombre del archivo CSV de resultados
             
         Returns:
             str: Path del archivo CSV con resultados
@@ -365,8 +401,14 @@ class ImageDownloader:
             # Generar reporte
             self.generate_summary_report(results)
             
+            # Generar nombre del archivo de salida
+            if output_filename is None:
+                # Use the input CSV filename as base
+                input_name = self.training_data_path.stem
+                output_filename = f"downloaded_{input_name}_dataset.csv"
+            
             # Guardar resultados
-            output_path = DATA_DIR / "downloaded_images_dataset.csv"
+            output_path = self.output_dir / output_filename
             results_df = save_results_dataframe(results, output_path)
             
             self.logger.info(f"Resultados guardados en: {output_path}")
@@ -383,6 +425,10 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Descarga imágenes del dataset de MercadoLibre")
+    parser.add_argument("--training-data", type=str, help="Path al archivo CSV con datos de entrenamiento")
+    parser.add_argument("--images-dir", type=str, help="Directorio donde guardar las imágenes descargadas")
+    parser.add_argument("--output-dir", type=str, help="Directorio donde guardar el CSV de resultados")
+    parser.add_argument("--output-name", type=str, help="Nombre del archivo CSV de resultados")
     parser.add_argument("--limit", type=int, help="Límite de imágenes a procesar (para testing)")
     parser.add_argument("--test", action="store_true", help="Ejecutar en modo test con 10 imágenes")
     
@@ -395,12 +441,16 @@ def main():
     elif args.limit:
         limit = args.limit
     
-    # Ejecutar descarga
-    downloader = ImageDownloader()
-    output_file = downloader.run(limit=limit)
+    # Ejecutar descarga con paths personalizados
+    downloader = ImageDownloader(
+        training_data_path=args.training_data,
+        images_dir=args.images_dir,
+        output_dir=args.output_dir
+    )
+    output_file = downloader.run(limit=limit, output_filename=args.output_name)
     
     print(f"\n✅ Proceso completado!")
-    print(f"📁 Imágenes guardadas en: {IMAGES_DIR}")
+    print(f"📁 Imágenes guardadas en: {downloader.images_dir}")
     print(f"📊 Dataset con rutas guardado en: {output_file}")
 
 
