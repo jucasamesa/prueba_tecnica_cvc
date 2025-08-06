@@ -35,7 +35,7 @@ image-classification-app/
 ## Data
 
 - **Source Images**: Product images for processing are located in `data/images/`. These include various product photos from the MercadoLibre dataset.
-- **Processed Images**: Images with backgrounds removed are saved in `data/processed_images/` with the prefix `no_background_`.
+- **Processed Images**: Images with backgrounds extracted (only background visible) are saved in `data/processed_images/` with the prefix `background_extracted_`.
 - **Background Mask Data**: Statistical information about background masks is stored in `data/processed/background_masks_data.csv`.
 - **Training Data**: The original dataset is available in `data/training_data.csv` for future model development.
 
@@ -46,7 +46,7 @@ image-classification-app/
 
 ## Main Components
 
-- **Background Extraction**: The `image_bg_extraction.py` script processes all images in `data/images/` to remove backgrounds using the rembg library. Features include:
+- **Background Extraction**: The `image_bg_extraction.py` script processes all images in `data/images/` to extract only the background (removing foreground objects) using the rembg library. Features include:
   - Batch processing with progress tracking (tqdm)
   - Automatic directory creation for outputs
   - CSV export of background mask statistics
@@ -97,7 +97,7 @@ python image_bg_extraction.py
 
 This will:
 - Process all images in `data/images/`
-- Save processed images (without backgrounds) to `data/processed_images/`
+- Save background-extracted images (only background visible) to `data/processed_images/`
 - Generate background mask statistics in `data/processed/background_masks_data.csv`
 - Show real-time progress with tqdm progress bars
 
