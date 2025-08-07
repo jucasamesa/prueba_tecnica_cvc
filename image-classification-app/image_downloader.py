@@ -4,7 +4,9 @@ Script principal para descargar imágenes del dataset de MercadoLibre.
 Este script lee el archivo training_data.csv, descarga las imágenes correspondientes
 y genera un nuevo dataset con las rutas de las imágenes descargadas.
 
-Ejemplo de como usar: python image_downloader.py \
+Ejemplo de como usar: 
+
+python image_downloader.py \
   --training-data "data/productive_data.csv" \
   --images-dir "data/validation_images" \
   --output-dir "data" \

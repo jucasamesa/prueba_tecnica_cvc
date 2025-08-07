@@ -1,7 +1,16 @@
-#!/usr/bin/env python3
 """
-Background Extraction Processing Script
-This script processes all images from data/images, removes backgrounds, and saves results.
+Script de procesamiento de extracción de fondo
+Este script procesa todas las imágenes de datos/imágenes, elimina los fondos y guarda los resultados.
+
+Ejemplos de como usar:
+
+python image_bg_extraction.py --test --input-dir "data/images"\
+    --output-images-dir "data/train_processed_images"\
+    --output-data-dir "data/train_processed"
+
+python image_bg_extraction.py --test --input-dir "data/validation_images"\
+    --output-images-dir "data/val_processed_images"\
+    --output-data-dir "data/val_processed"
 """
 
 import os
@@ -21,10 +30,26 @@ except ImportError as e:
     print(f"❌ Error importing rembg: {e}")
     sys.exit(1)
 
-def create_output_directories():
-    """Create the necessary output directories if they don't exist."""
-    processed_images_dir = Path("data/processed_images")
-    processed_data_dir = Path("data/processed")
+def create_output_directories(processed_images_dir: str = None, processed_data_dir: str = None):
+    """
+    Create the necessary output directories if they don't exist.
+    
+    Args:
+        processed_images_dir (str, optional): Directory for processed images
+        processed_data_dir (str, optional): Directory for processed data
+        
+    Returns:
+        tuple: (processed_images_dir, processed_data_dir) as Path objects
+    """
+    if processed_images_dir:
+        processed_images_dir = Path(processed_images_dir)
+    else:
+        processed_images_dir = Path("data/processed_images")
+        
+    if processed_data_dir:
+        processed_data_dir = Path(processed_data_dir)
+    else:
+        processed_data_dir = Path("data/processed")
     
     processed_images_dir.mkdir(parents=True, exist_ok=True)
     processed_data_dir.mkdir(parents=True, exist_ok=True)
@@ -34,14 +59,63 @@ def create_output_directories():
     
     return processed_images_dir, processed_data_dir
 
-def process_single_image(image_path, processed_images_dir):
-    """Process a single image to extract only the background and return mask data."""
+def process_single_image(image_path, processed_images_dir, target_size=(512, 512)):
+    """
+    Process a single image to extract only the background and return mask data.
+    
+    Args:
+        image_path: Path to the input image
+        processed_images_dir: Directory to save processed images
+        target_size: Tuple of (width, height) for resizing images (default: 512x512)
+    """
     try:
         # Load original image
         original_image = Image.open(image_path)
         
+        # Validate image
+        if original_image.size[0] == 0 or original_image.size[1] == 0:
+            print(f"⚠️  Warning: Invalid image size for {image_path.name}")
+            return None
+        
+        # Convert to RGB mode if it's not already (handles grayscale, RGBA, etc.)
+        if original_image.mode not in ['RGB', 'RGBA']:
+            try:
+                original_image = original_image.convert('RGB')
+            except Exception as e:
+                print(f"⚠️  Warning: Could not convert {image_path.name} to RGB: {e}")
+                return None
+        
+        # Resize image to target size while maintaining aspect ratio
+        # Calculate the scaling factor to fit the image within the target size
+        original_width, original_height = original_image.size
+        target_width, target_height = target_size
+        
+        # Calculate scaling factor to fit the image within target size
+        scale_factor = min(target_width / original_width, target_height / original_height)
+        new_width = int(original_width * scale_factor)
+        new_height = int(original_height * scale_factor)
+        
+        # Ensure minimum size
+        if new_width < 1 or new_height < 1:
+            print(f"⚠️  Warning: Image {image_path.name} too small to resize")
+            return None
+        
+        # Resize the image
+        resized_image = original_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Create a new image with the target size and paste the resized image in the center
+        # Use RGB mode and white background (255, 255, 255)
+        final_image = Image.new('RGB', target_size, (255, 255, 255))
+        
+        # Calculate position to center the resized image
+        x_offset = (target_width - new_width) // 2
+        y_offset = (target_height - new_height) // 2
+        
+        # Paste the resized image onto the final image
+        final_image.paste(resized_image, (x_offset, y_offset))
+        
         # Get the mask using rembg (this gives us the foreground mask)
-        mask = remove(original_image, only_mask=True)
+        mask = remove(final_image, only_mask=True)
         
         # Convert mask to numpy array
         mask_array = np.array(mask)
@@ -52,17 +126,17 @@ def process_single_image(image_path, processed_images_dir):
         # Convert back to PIL Image
         background_mask_pil = Image.fromarray(background_mask.astype(np.uint8))
         
-        # Apply the background mask to the original image
-        original_array = np.array(original_image)
+        # Apply the background mask to the final image
+        final_array = np.array(final_image)
         
         # Create a 4-channel image (RGBA) if it's not already
-        if original_array.shape[2] == 3:
+        if final_array.shape[2] == 3:
             # Add alpha channel
-            rgba_image = np.zeros((original_array.shape[0], original_array.shape[1], 4), dtype=np.uint8)
-            rgba_image[:, :, :3] = original_array
+            rgba_image = np.zeros((final_array.shape[0], final_array.shape[1], 4), dtype=np.uint8)
+            rgba_image[:, :, :3] = final_array
             rgba_image[:, :, 3] = 255  # Full opacity
         else:
-            rgba_image = original_array
+            rgba_image = final_array
         
         # Apply the background mask to the alpha channel
         rgba_image[:, :, 3] = background_mask[:, :, 0] if background_mask.ndim == 3 else background_mask
@@ -85,17 +159,16 @@ def process_single_image(image_path, processed_images_dir):
             background_mask_flat = background_mask.flatten()
         
         # Extract background color information for color analysis
-        original_array = np.array(original_image)
-        if original_array.shape[2] == 3:  # RGB
+        if final_array.shape[2] == 3:  # RGB
             # Apply background mask to get background pixels only
             background_pixels_mask = background_mask > 127
             if background_mask.ndim == 3:
                 background_pixels_mask = background_pixels_mask[:, :, 0]
             
             # Extract RGB values of background pixels
-            background_r = original_array[:, :, 0][background_pixels_mask]
-            background_g = original_array[:, :, 1][background_pixels_mask]
-            background_b = original_array[:, :, 2][background_pixels_mask]
+            background_r = final_array[:, :, 0][background_pixels_mask]
+            background_g = final_array[:, :, 1][background_pixels_mask]
+            background_b = final_array[:, :, 2][background_pixels_mask]
             
             # Calculate average background color
             avg_background_color = {
@@ -111,24 +184,45 @@ def process_single_image(image_path, processed_images_dir):
             'processed_image_name': f"background_extracted_{image_path.stem}.png",
             'background_mask': background_mask_flat.tolist(),
             'mask_shape': background_mask.shape if background_mask.ndim == 2 else background_mask.shape[:2],
-            'background_color': avg_background_color
+            'background_color': avg_background_color,
+            'original_size': (original_width, original_height),
+            'resized_size': (new_width, new_height),
+            'final_size': target_size
         }
         
     except Exception as e:
         # Error will be tracked in the progress bar
+        print(f"Error processing {image_path.name}: {e}")
         return None
 
-def process_all_images():
-    """Process all images from data/images directory."""
+def process_all_images(input_dir: str = None, processed_images_dir: str = None, processed_data_dir: str = None, limit: int = None, target_size: tuple = (512, 512)):
+    """
+    Process all images from the specified input directory.
+    
+    Args:
+        input_dir (str, optional): Directory containing images to process (default: data/images)
+        processed_images_dir (str, optional): Directory to save processed images (default: data/processed_images)
+        processed_data_dir (str, optional): Directory to save processed data (default: data/processed)
+        limit (int, optional): Limit number of images to process (for testing)
+        target_size (tuple, optional): Target size for resizing images (default: (512, 512))
+        
+    Returns:
+        bool: True if processing was successful, False otherwise
+    """
     print("\n🚀 Starting batch image processing...")
+    print(f"📏 Target image size: {target_size[0]}x{target_size[1]} pixels")
     
     # Create output directories
-    processed_images_dir, processed_data_dir = create_output_directories()
+    processed_images_dir, processed_data_dir = create_output_directories(processed_images_dir, processed_data_dir)
     
     # Check if input directory exists
-    input_dir = Path("data/images")
+    if input_dir:
+        input_dir = Path(input_dir)
+    else:
+        input_dir = Path("data/images")
+        
     if not input_dir.exists():
-        print("❌ data/images directory not found.")
+        print(f"❌ Input directory not found: {input_dir}")
         return False
     
     # Get all image files (using case-insensitive matching to avoid duplicates)
@@ -148,6 +242,11 @@ def process_all_images():
     
     print(f"📊 Found {len(image_files)} images to process")
     
+    # Apply limit if specified
+    if limit:
+        image_files = image_files[:limit]
+        print(f"🔧 Limited to {limit} images for testing")
+    
     # Store results for CSV
     mask_data = []
     successful_processed = 0
@@ -157,7 +256,7 @@ def process_all_images():
         for image_path in pbar:
             pbar.set_description(f"Processing {image_path.name}")
             
-            result = process_single_image(image_path, processed_images_dir)
+            result = process_single_image(image_path, processed_images_dir, target_size)
             if result:
                 mask_data.append(result)
                 successful_processed += 1
@@ -201,7 +300,13 @@ def process_all_images():
                     'avg_background_g': avg_g,
                     'avg_background_b': avg_b,
                     'is_white_background': is_white,
-                    'is_cream_background': is_cream
+                    'is_cream_background': is_cream,
+                    'original_width': item['original_size'][0],
+                    'original_height': item['original_size'][1],
+                    'resized_width': item['resized_size'][0],
+                    'resized_height': item['resized_size'][1],
+                    'final_width': item['final_size'][0],
+                    'final_height': item['final_size'][1]
                 }
                 csv_data.append(csv_row)
             
@@ -209,7 +314,8 @@ def process_all_images():
             with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
                 fieldnames = ['original_image_name', 'processed_image_name', 'mask_height', 'mask_width', 
                              'mask_mean', 'mask_std', 'mask_min', 'mask_max', 'background_pixels', 'total_pixels',
-                             'avg_background_r', 'avg_background_g', 'avg_background_b', 'is_white_background', 'is_cream_background']
+                             'avg_background_r', 'avg_background_g', 'avg_background_b', 'is_white_background', 'is_cream_background',
+                             'original_width', 'original_height', 'resized_width', 'resized_height', 'final_width', 'final_height']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(csv_data)
@@ -256,17 +362,56 @@ def process_all_images():
 
 def main():
     """Main function to process all images and extract backgrounds."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Background extraction from images")
+    parser.add_argument("--input-dir", type=str, help="Directory containing images to process (default: data/images)")
+    parser.add_argument("--output-images-dir", type=str, help="Directory to save processed images (default: data/processed_images)")
+    parser.add_argument("--output-data-dir", type=str, help="Directory to save processed data (default: data/processed)")
+    parser.add_argument("--limit", type=int, help="Limit number of images to process (for testing)")
+    parser.add_argument("--test", action="store_true", help="Test mode - process only 10 images")
+    parser.add_argument("--target-size", type=int, nargs=2, default=[512, 512], 
+                       help="Target size for resizing images (width height) (default: 512 512)")
+    
+    args = parser.parse_args()
+    
     print("🚀 Starting Image Background Extraction Processing")
     print("=" * 60)
     
-    # Process all images from data/images
-    if process_all_images():
+    # Configure limit
+    limit = None
+    if args.test:
+        limit = 10
+    elif args.limit:
+        limit = args.limit
+    
+    # Configure target size
+    target_size = tuple(args.target_size)
+    print(f"📏 Target image size: {target_size[0]}x{target_size[1]} pixels")
+    
+    # Process all images with custom paths
+    success = process_all_images(
+        input_dir=args.input_dir,
+        processed_images_dir=args.output_images_dir,
+        processed_data_dir=args.output_data_dir,
+        limit=limit,
+        target_size=target_size
+    )
+    
+    if success:
         print("✅ Image processing completed successfully!")
         print("\n📁 Results:")
-        print("   - Background extracted images saved to: data/processed_images/")
-        print("   - Background color analysis saved to: data/processed/background_masks_data.csv")
-        print("   - Complete mask arrays saved to: data/processed/background_masks_arrays.npz")
-        print("   - Array mapping reference saved to: data/processed/mask_arrays_mapping.csv")
+        
+        # Determine actual paths used
+        actual_input_dir = args.input_dir if args.input_dir else "data/images"
+        actual_output_images_dir = args.output_images_dir if args.output_images_dir else "data/processed_images"
+        actual_output_data_dir = args.output_data_dir if args.output_data_dir else "data/processed"
+        
+        print(f"   - Background extracted images saved to: {actual_output_images_dir}/")
+        print(f"   - Background color analysis saved to: {actual_output_data_dir}/background_masks_data.csv")
+        print(f"   - Complete mask arrays saved to: {actual_output_data_dir}/background_masks_arrays.npz")
+        print(f"   - Array mapping reference saved to: {actual_output_data_dir}/mask_arrays_mapping.csv")
+        print(f"   - All images resized to: {target_size[0]}x{target_size[1]} pixels")
     else:
         print("❌ Image processing failed!")
     
