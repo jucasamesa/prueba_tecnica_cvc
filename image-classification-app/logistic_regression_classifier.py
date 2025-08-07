@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """
-Simple Support Vector Classifier for Background Classification
-This script implements an SVC model using flattened background mask arrays from .npz files.
+Logistic Regression Classifier for Background Classification
+This script implements a Logistic Regression model using flattened background mask arrays from .npz files.
 Uses cross-validation to ensure robust results.
 Uses preprocessed background_masks_data_with_labels.csv files and filtered mask arrays.
-
-FAST MODE: Set fast_mode=True in train_svc_classifier_with_cv() for quick testing
-with minimal hyperparameters (1 combination × 5 folds = 5 total fits).
+Much faster than SVC for large datasets.
 """
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score, StratifiedKFold, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
@@ -74,9 +72,9 @@ def load_and_prepare_data(masks_path, mapping_path, labels_path):
             skipped_count += 1
             continue
             
-        # Get the mask array and flatten it using the correct method
+        # Get the mask array and flatten it
         mask_array = masks_data[array_key]
-        flattened_mask = mask_array.flatten()  # Use the correct ndarray.flatten() method
+        flattened_mask = mask_array.flatten()
         
         # Check if this is the first mask array
         if first_flattened_length is None:
@@ -138,60 +136,56 @@ def load_and_prepare_data(masks_path, mapping_path, labels_path):
     
     return X, y
 
-def train_svc_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=False):
+def train_logistic_regression_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=True):
     """
-    Train an SVC classifier using cross-validation for robust evaluation.
+    Train a Logistic Regression classifier using cross-validation for robust evaluation.
     
     Args:
         X (np.array): Feature matrix (flattened mask arrays)
         y (np.array): Target vector
         cv_folds (int): Number of cross-validation folds
         random_state (int): Random state for reproducibility
-        fast_mode (bool): If True, use minimal hyperparameters for quick testing
+        fast_mode (bool): If True, use minimal parameter grid for speed
         
     Returns:
         tuple: (trained_pipeline, evaluation_results)
     """
-    print(f"🚀 Training SVC classifier with {cv_folds}-fold cross-validation...")
+    print(f"🚀 Training Logistic Regression classifier with {cv_folds}-fold cross-validation...")
     
-    if fast_mode:
-        print("⚡ FAST MODE: Using minimal hyperparameters for quick testing")
-    
-    # Create pipeline with scaling and SVC
+    # Create pipeline with scaling and Logistic Regression
     pipeline = Pipeline([
         ('scaler', StandardScaler()),
-        ('svc', SVC(random_state=random_state, probability=True))
+        ('lr', LogisticRegression(random_state=random_state, max_iter=1000, n_jobs=-1))
     ])
     
     # Define parameter grid based on mode
     if fast_mode:
-        # Minimal parameter grid for quick testing
+        print("⚡ Using FAST MODE - minimal parameter grid for speed")
         param_grid = {
-            'svc__C': [1],  # Single value
-            'svc__gamma': ['scale'],  # Single value
-            'svc__kernel': ['rbf']  # Single value
+            'lr__C': [1.0],  # Single value
+            'lr__penalty': ['l2']  # Single value
         }
-        print("🔍 Fast mode: Using 1 parameter combination (1 × 5 folds = 5 total fits)")
+        # This results in only 1 combination × 5 folds = 5 total fits
     else:
-        # Regular parameter grid
+        print("🔍 Using FULL MODE - comprehensive parameter grid")
         param_grid = {
-            'svc__C': [0.1, 1],  # Reduced from [0.1, 1, 10, 100]
-            'svc__gamma': ['scale', 'auto'],  # Reduced from ['scale', 'auto', 0.001, 0.01, 0.1]
-            'svc__kernel': ['rbf', 'linear']  # Changed back to linear for better performance
+            'lr__C': [0.1, 1.0, 10.0, 100.0],
+            'lr__penalty': ['l1', 'l2'],
+            'lr__solver': ['liblinear', 'saga']
         }
-        print("🔍 Regular mode: Using 8 parameter combinations (8 × 5 folds = 40 total fits)")
+        # This results in 4 × 2 × 2 = 16 combinations × 5 folds = 80 total fits
     
     # Create cross-validation strategy
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
     
-    # Perform grid search with cross-validation (limit jobs to reduce memory usage)
-    print("🔍 Performing grid search with cross-validation...")
+    # Perform grid search with cross-validation
+    print(f"🔍 Performing grid search with cross-validation ({len(param_grid)} combinations × {cv_folds} folds = {len(param_grid) * cv_folds} total fits)...")
     grid_search = GridSearchCV(
         pipeline, 
         param_grid, 
         cv=cv,
         scoring='f1_weighted',
-        n_jobs=1,  # Reduced from -1 to limit memory usage
+        n_jobs=1,  # Single job to avoid memory issues
         verbose=1
     )
     
@@ -219,8 +213,8 @@ def train_svc_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=Fa
     for i, (acc, f1) in enumerate(zip(cv_accuracy, cv_f1)):
         print(f"{i+1}\t{acc:.4f}\t\t{f1:.4f}")
     
-    # Perform final evaluation on a held-out test set (20% of data) with shuffling
-    print("\n🔄 Creating train/test split with shuffling...")
+    # Perform final evaluation on a held-out test set (20% of data)
+    print("\n🔄 Creating train/test split...")
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=random_state, stratify=y, shuffle=True
     )
@@ -239,7 +233,7 @@ def train_svc_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=Fa
     test_accuracy = accuracy_score(y_test, y_pred)
     test_f1 = f1_score(y_test, y_pred, average='weighted')
     
-    print(f"\n📊 Test set evaluation (20% held-out, shuffled):")
+    print(f"\n📊 Test set evaluation (20% held-out):")
     print(f"✅ Test Accuracy: {test_accuracy:.4f}")
     print(f"✅ Test F1 Score: {test_f1:.4f}")
     
@@ -251,6 +245,28 @@ def train_svc_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=Fa
     print("\n📊 Confusion Matrix (Test Set):")
     cm = confusion_matrix(y_test, y_pred)
     print(cm)
+    
+    # Feature importance analysis (Logistic Regression specific)
+    lr_model = best_pipeline.named_steps['lr']
+    feature_importance = np.abs(lr_model.coef_[0])  # Take absolute values of coefficients
+    print(f"\n📊 Feature Importance Analysis (Logistic Regression Coefficients):")
+    print(f"✅ Number of features: {len(feature_importance)}")
+    print(f"✅ Mean absolute coefficient: {feature_importance.mean():.6f}")
+    print(f"✅ Max absolute coefficient: {feature_importance.max():.6f}")
+    print(f"✅ Min absolute coefficient: {feature_importance.min():.6f}")
+    
+    # Top 10 most important features
+    top_features_idx = np.argsort(feature_importance)[-10:][::-1]
+    print(f"\n🏆 Top 10 most important features (by absolute coefficient):")
+    for i, idx in enumerate(top_features_idx):
+        print(f"   {i+1:2d}. Feature {idx:6d}: {feature_importance[idx]:.6f} (coef: {lr_model.coef_[0][idx]:.6f})")
+    
+    # Model interpretability analysis
+    print(f"\n🔍 Model Interpretability:")
+    print(f"✅ Intercept: {lr_model.intercept_[0]:.6f}")
+    print(f"✅ Number of positive coefficients: {(lr_model.coef_[0] > 0).sum()}")
+    print(f"✅ Number of negative coefficients: {(lr_model.coef_[0] < 0).sum()}")
+    print(f"✅ Number of zero coefficients: {(lr_model.coef_[0] == 0).sum()}")
     
     evaluation_results = {
         'cv_accuracy_mean': cv_accuracy.mean(),
@@ -265,6 +281,10 @@ def train_svc_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=Fa
         'best_params': grid_search.best_params_,
         'cv_scores_accuracy': cv_accuracy,
         'cv_scores_f1': cv_f1,
+        'feature_importance': feature_importance,
+        'coefficients': lr_model.coef_[0],
+        'intercept': lr_model.intercept_[0],
+        'fast_mode': fast_mode,
         'X_train_shape': X_train.shape,
         'X_test_shape': X_test.shape
     }
@@ -287,10 +307,10 @@ def save_model(pipeline, model_path):
 
 def main():
     """
-    Main function to demonstrate the SVC classifier with cross-validation.
+    Main function to demonstrate the Logistic Regression classifier with cross-validation.
     """
-    print("🎯 Background Classification with SVC using Cross-Validation")
-    print("=" * 70)
+    print("🎯 Background Classification with Logistic Regression using Cross-Validation")
+    print("=" * 80)
     
     # Define paths for preprocessed and filtered data
     masks_train_path = Path("data/train_processed/background_masks_arrays_filtered.npz")
@@ -343,13 +363,13 @@ def main():
         
         print(f"\n📊 Training dataset: {X_train.shape[0]} samples, {X_train.shape[1]} features")
         
-        # Train the SVC classifier with cross-validation using only training data
-        print("\n🚀 Training SVC classifier with cross-validation (training data only)...")
-        print("⚡ Using FAST MODE for quick testing (1 parameter combination × 5 folds = 5 total fits)")
-        trained_pipeline, results = train_svc_classifier_with_cv(X_train, y_train, cv_folds=5, fast_mode=True)
+        # Train the Logistic Regression classifier with cross-validation using only training data
+        print("\n🚀 Training Logistic Regression classifier with cross-validation (training data only)...")
+        print("⚡ Using FAST MODE for quick training (1 parameter combination × 5 folds = 5 total fits)")
+        trained_pipeline, results = train_logistic_regression_classifier_with_cv(X_train, y_train, cv_folds=5, fast_mode=True)
         
         # Save the model
-        model_path = Path("models/background_svc_classifier_cv.pkl")
+        model_path = Path("models/background_logistic_regression_classifier_cv.pkl")
         save_model(trained_pipeline, model_path)
         
         # Now load validation data for final evaluation
@@ -382,7 +402,7 @@ def main():
         val_cm = confusion_matrix(y_val, y_val_pred)
         print(val_cm)
         
-        print(f"\n🎉 SVC classifier training and evaluation completed!")
+        print(f"\n🎉 Logistic Regression classifier training and evaluation completed!")
         print(f"📁 Model saved to: {model_path}")
         print(f"\n📊 Final Results Summary:")
         print(f"   - Cross-validation Accuracy: {results['cv_accuracy_mean']:.4f} (+/- {results['cv_accuracy_std'] * 2:.4f})")
@@ -403,3 +423,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
