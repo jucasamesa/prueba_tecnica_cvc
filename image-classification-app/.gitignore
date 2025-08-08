@@ -12,7 +12,6 @@ data/
 *.xlsx
 *.xls
 *.csv
-*.log
 *.zip
 *.pdf
 *.txt
