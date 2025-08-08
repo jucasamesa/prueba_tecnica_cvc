@@ -1,361 +1,356 @@
-# Image Classification App - Background Quality Prediction
+# Aplicación de Clasificación de Imágenes - Predicción de Calidad de Fondo
 
-This project is a comprehensive image processing and machine learning application focused on **background quality prediction** for 
-product images. The system automatically downloads images, processes them to remove foreground objects, analyzes background quality, and 
-trains multiple machine learning models to predict whether a background meets quality standards.
+Este proyecto es una aplicación integral de procesamiento de imágenes y aprendizaje automático enfocada en la **predicción de calidad de fondo** para imágenes de productos. El sistema descarga automáticamente imágenes, las procesa para eliminar objetos en primer plano, analiza la calidad del fondo y entrena múltiples modelos de aprendizaje automático para predecir si un fondo cumple con los estándares de calidad.
 
-## 🎯 Project Overview
+## 🎯 Resumen del Proyecto
 
-The goal is to predict if a product image background is of acceptable quality (cream/white backgrounds that "cumple" vs. other 
-backgrounds that "no cumple"). The system processes images through multiple stages: download → preprocessing → analysis → modeling → 
-evaluation.
+El objetivo es predecir si el fondo de una imagen de producto es de calidad aceptable (fondos crema/blancos que "cumple" vs. otros fondos que "no cumple"). El sistema procesa imágenes a través de múltiples etapas: descarga → preprocesamiento → análisis → modelado → evaluación.
 
-## 📁 Project Structure
+## 📁 Estructura del Proyecto
 
 ```
 image-classification-app/
 ├── data/
-│   ├── images/                                    # Original downloaded images
-│   ├── train/                                     # Training images
-│   │   ├── processed/                            # Processed training images (resized + rembg)
-│   │   └── background_masks_data_with_labels.csv # Training data with labels
-│   ├── val/                                      # Validation images
-│   │   ├── processed/                            # Processed validation images
-│   │   └── background_masks_data_with_labels.csv # Validation data with labels
-│   ├── train_processed/                          # Training processed data
-│   │   ├── background_masks_arrays_filtered.npz  # Filtered mask arrays
-│   │   ├── mask_arrays_mapping_filtered.csv      # Mapping for filtered arrays
-│   │   └── background_masks_data_with_labels.csv # Training data with quality metrics
-│   └── val_processed/                            # Validation processed data
-│       ├── background_masks_arrays_filtered.npz  # Filtered mask arrays
-│       ├── mask_arrays_mapping_filtered.csv      # Mapping for filtered arrays
-│       └── background_masks_data_with_labels.csv # Validation data with quality metrics
-├── models/                                       # Trained models
+│   ├── images/                                    # Imágenes originales descargadas
+│   ├── train/                                     # Imágenes de entrenamiento
+│   │   ├── processed/                            # Imágenes de entrenamiento procesadas (redimensionadas + rembg)
+│   │   └── background_masks_data_with_labels.csv # Datos de entrenamiento con etiquetas
+│   ├── val/                                      # Imágenes de validación
+│   │   ├── processed/                            # Imágenes de validación procesadas
+│   │   └── background_masks_data_with_labels.csv # Datos de validación con etiquetas
+│   ├── train_processed/                          # Datos de entrenamiento procesados
+│   │   ├── background_masks_arrays_filtered.npz  # Arrays de máscaras filtradas
+│   │   ├── mask_arrays_mapping_filtered.csv      # Mapeo para arrays filtrados
+│   │   └── background_masks_data_with_labels.csv # Datos de entrenamiento con métricas de calidad
+│   └── val_processed/                            # Datos de validación procesados
+│       ├── background_masks_arrays_filtered.npz  # Arrays de máscaras filtradas
+│       ├── mask_arrays_mapping_filtered.csv      # Mapeo para arrays filtrados
+│       └── background_masks_data_with_labels.csv # Datos de validación con métricas de calidad
+├── models/                                       # Modelos entrenados
 │   ├── background_logistic_regression_classifier_cv.pkl
 │   ├── background_svc_classifier_cv.pkl
 │   ├── background_random_forest_classifier_cv.pkl
 │   └── background_cnn_classifier_cv.pkl
-├── logs/                                         # Training and evaluation logs
+├── logs/                                         # Registros de entrenamiento y evaluación
 │   ├── logistic_regression_training_*.log
 │   ├── svc_training_*.log
 │   ├── random_forest_training_*.log
 │   ├── cnn_training_*.log
 │   └── model_evaluation_*.log
-├── scripts/                                      # Processing and analysis scripts
-│   ├── image_downloader.py                      # Image downloading utilities
-│   ├── image_bg_extraction.py                   # Background removal and processing
-│   ├── preprocess_labels.py                     # Filter and preprocess labels
-│   ├── apply_image_analyzer.py                  # Apply quality metrics to data
-│   ├── simple_svc_classifier.py                 # Fast SVC classifier
-│   ├── svc_classifier.py                        # Full SVC classifier
-│   ├── logistic_regression_classifier.py        # Logistic regression classifier
-│   ├── random_forest_classifier.py              # Random forest classifier
-│   ├── cnn_classifier.py                        # CNN classifier
-│   └── evaluate_model.py                        # General model evaluator
-├── eda_modules/                                  # Exploratory data analysis modules
+├── scripts/                                      # Scripts de procesamiento y análisis
+│   ├── image_downloader.py                      # Utilidades de descarga de imágenes
+│   ├── image_bg_extraction.py                   # Eliminación y procesamiento de fondos
+│   ├── preprocess_labels.py                     # Filtrado y preprocesamiento de etiquetas
+│   ├── apply_image_analyzer.py                  # Aplicación de métricas de calidad a datos
+│   ├── simple_svc_classifier.py                 # Clasificador SVC rápido
+│   ├── svc_classifier.py                        # Clasificador SVC completo
+│   ├── logistic_regression_classifier.py        # Clasificador de regresión logística
+│   ├── random_forest_classifier.py              # Clasificador de bosque aleatorio
+│   ├── cnn_classifier.py                        # Clasificador CNN
+│   └── evaluate_model.py                        # Evaluador general de modelos
+├── eda_modules/                                  # Módulos de análisis exploratorio de datos
 │   ├── __init__.py
-│   ├── eda_atomic.py                            # Atomic-level analysis
-│   ├── eda_full.py                              # Full analysis workflows
-│   ├── image_analyzer.py                        # Image quality analysis
-│   ├── segmentation.py                          # Image segmentation
+│   ├── eda_atomic.py                            # Análisis a nivel atómico
+│   ├── eda_full.py                              # Flujos de trabajo de análisis completo
+│   ├── image_analyzer.py                        # Análisis de calidad de imágenes
+│   ├── segmentation.py                          # Segmentación de imágenes
 │   └── example.ipynb
 ├── notebooks/
-│   └── prueba_tecnica_cvc.ipynb                # Main project notebook with analysis
-├── utils.py                                      # General utility functions
-├── config.py                                     # Configuration settings
-├── requirements.txt                              # Project dependencies
-├── setup.py                                      # Package setup configuration
-├── MODEL_EVALUATOR_README.md                    # Model evaluator documentation
-├── CNN_README.md                                # CNN classifier documentation
-├── SVC_README.md                                # SVC classifier documentation
-└── README.md                                    # This file
+│   └── prueba_tecnica_cvc.ipynb                # Notebook principal del proyecto con análisis
+├── utils.py                                      # Funciones de utilidad general
+├── config.py                                     # Configuración de ajustes
+├── requirements.txt                              # Dependencias del proyecto
+├── setup.py                                      # Configuración de configuración del paquete
+├── MODEL_EVALUATOR_README.md                    # Documentación del evaluador de modelos
+├── CNN_README.md                                # Documentación del clasificador CNN
+├── SVC_README.md                                # Documentación del clasificador SVC
+└── README.md                                    # Este archivo
 ```
 
-**Note**: All processing and analysis scripts are located in the `scripts/` directory. When running scripts, make sure to use the 
-correct path: `python scripts/script_name.py`.
+**Nota**: Todos los scripts de procesamiento y análisis se encuentran en el directorio `scripts/`. Al ejecutar scripts, asegúrate de usar la ruta correcta: `python scripts/script_name.py`.
 
-## 🔄 Process Flow
+## 🔄 Flujo del Proceso
 
-### 1. **Image Download** 📥
+### 1. **Descarga de Imágenes** 📥
 ```bash
 python scripts/image_downloader.py
 ```
-- Downloads training and validation images from external sources
-- Organizes images into `data/train/` and `data/val/` directories
-- Handles image URLs and local file management
+- Descarga imágenes de entrenamiento y validación de fuentes externas
+- Organiza imágenes en directorios `data/train/` y `data/val/`
+- Maneja URLs de imágenes y gestión de archivos locales
 
-### 2. **Image Processing** 🖼️
+### 2. **Procesamiento de Imágenes** 🖼️
 ```bash
 python scripts/image_bg_extraction.py
 ```
-- **Resizes** images to standard dimensions (512x512)
-- **Removes foreground objects** using `rembg` (AI-powered background removal)
-- **Saves background-only images** with transparent foregrounds (RGBA)
-- **Generates mask arrays** and stores them in NPZ files
-- **Creates CSV files** with background statistics and metadata
-- **Analyzes background colors** using CIELAB (1976) color space for cream detection
+- **Redimensiona** imágenes a dimensiones estándar (512x512)
+- **Elimina objetos en primer plano** usando `rembg` (eliminación de fondo con IA)
+- **Guarda imágenes solo de fondo** con primeros planos transparentes (RGBA)
+- **Genera arrays de máscaras** y los almacena en archivos NPZ
+- **Crea archivos CSV** con estadísticas de fondo y metadatos
+- **Analiza colores de fondo** usando espacio de color CIELAB (1976) para detección de crema
 
-**Key Features:**
-- Preserves original background colors (no white/black filling)
-- Uses transparent foregrounds to avoid color interference
-- CIELAB-based cream color detection with perceptual accuracy
-- Comprehensive metadata tracking
+**Características Clave:**
+- Preserva colores de fondo originales (sin relleno blanco/negro)
+- Usa primeros planos transparentes para evitar interferencia de color
+- Detección de color crema basada en CIELAB con precisión perceptual
+- Seguimiento completo de metadatos
 
-### 3. **Data Filtering** 🔍
+### 3. **Filtrado de Datos** 🔍
 ```bash
 python scripts/preprocess_labels.py
 ```
-- **Filters out uncertain data** (removes rows with `correct_background? = ?`)
-- **Creates filtered datasets** for training and validation
-- **Generates filtered NPZ files** with only certain labels
-- **Updates mapping files** for filtered data
+- **Filtra datos inciertos** (elimina filas con `correct_background? = ?`)
+- **Crea conjuntos de datos filtrados** para entrenamiento y validación
+- **Genera archivos NPZ filtrados** con solo etiquetas ciertas
+- **Actualiza archivos de mapeo** para datos filtrados
 
-### 4. **Quality Analysis** 📊
+### 4. **Análisis de Calidad** 📊
 ```bash
 python scripts/apply_image_analyzer.py
 ```
-- **Applies ImageAnalyzer** to processed images
-- **Calculates quality metrics**: brightness, contrast, sharpness, etc.
-- **Updates CSV files** with additional quality features
-- **Enriches training data** for better model performance
+- **Aplica ImageAnalyzer** a imágenes procesadas
+- **Calcula métricas de calidad**: brillo, contraste, nitidez, etc.
+- **Actualiza archivos CSV** con características de calidad adicionales
+- **Enriquece datos de entrenamiento** para mejor rendimiento del modelo
 
-### 5. **Model Training** 🤖
+### 5. **Entrenamiento de Modelos** 🤖
 
-#### 5.1 Logistic Regression
+#### 5.1 Regresión Logística
 ```bash
 python scripts/logistic_regression_classifier.py
 ```
-- Fast, interpretable linear model
-- Cross-validation with stratified k-fold
-- Automatic hyperparameter tuning
-- Comprehensive logging
+- Modelo lineal rápido e interpretable
+- Validación cruzada con k-fold estratificado
+- Ajuste automático de hiperparámetros
+- Registro completo
 
-#### 5.2 Support Vector Classifier (SVC)
+#### 5.2 Clasificador de Vectores de Soporte (SVC)
 ```bash
-# Fast mode for quick testing
+# Modo rápido para pruebas rápidas
 python scripts/simple_svc_classifier.py
 
-# Full mode with comprehensive tuning
+# Modo completo con ajuste integral
 python scripts/svc_classifier.py
 ```
-- Non-linear classification with kernel methods
-- Grid search for hyperparameter optimization
-- Memory-efficient processing
-- Fast mode for quick validation
+- Clasificación no lineal con métodos de kernel
+- Búsqueda en cuadrícula para optimización de hiperparámetros
+- Procesamiento eficiente en memoria
+- Modo rápido para validación rápida
 
-#### 5.3 Random Forest
+#### 5.3 Bosque Aleatorio
 ```bash
 python scripts/random_forest_classifier.py
 ```
-- Ensemble method with multiple decision trees
-- Feature importance analysis
-- Robust to overfitting
-- Good for imbalanced datasets
+- Método de conjunto con múltiples árboles de decisión
+- Análisis de importancia de características
+- Robusto al sobreajuste
+- Bueno para conjuntos de datos desequilibrados
 
-#### 5.4 Convolutional Neural Network (CNN)
+#### 5.4 Red Neuronal Convolucional (CNN)
 ```bash
 python scripts/cnn_classifier.py
 ```
-- Deep learning approach using TensorFlow/Keras
-- Image-based learning (not just flattened arrays)
-- Data augmentation for better generalization
-- Early stopping and learning rate reduction
-- GPU acceleration support
+- Enfoque de aprendizaje profundo usando TensorFlow/Keras
+- Aprendizaje basado en imágenes (no solo arrays aplanados)
+- Aumentación de datos para mejor generalización
+- Parada temprana y reducción de tasa de aprendizaje
+- Soporte para aceleración GPU
 
-### 6. **Model Evaluation** 🎯
+### 6. **Evaluación de Modelos** 🎯
 ```bash
-# List available models
+# Listar modelos disponibles
 python scripts/evaluate_model.py --list
 
-# Evaluate specific model
+# Evaluar modelo específico
 python scripts/evaluate_model.py -m models/background_logistic_regression_classifier_cv.pkl
 
-# Evaluate without logging
+# Evaluar sin registro
 python scripts/evaluate_model.py -m models/background_svc_classifier_cv.pkl --no-log
 ```
-- **Universal evaluator** for all trained models
-- **Comprehensive metrics**: Accuracy, F1-Score, Precision, Recall
-- **Per-class analysis** for background quality prediction
-- **Confusion matrix** and detailed classification reports
-- **Automatic logging** to timestamped files
+- **Evaluador universal** para todos los modelos entrenados
+- **Métricas integrales**: Precisión, F1-Score, Precisión, Recuperación
+- **Análisis por clase** para predicción de calidad de fondo
+- **Matriz de confusión** y reportes de clasificación detallados
+- **Registro automático** a archivos con marca de tiempo
 
-### 7. **Project Analysis** 📈
+### 7. **Análisis del Proyecto** 📈
 ```bash
-# Open Jupyter notebook
+# Abrir notebook Jupyter
 jupyter notebook notebooks/prueba_tecnica_cvc.ipynb
 ```
-- **Complete project documentation** and analysis
-- **Answers to technical tasks** and requirements
-- **Data exploration** and visualization
-- **Model comparison** and results analysis
-- **CIELAB color space analysis** for cream detection
+- **Documentación completa del proyecto** y análisis
+- **Respuestas a tareas técnicas** y requisitos
+- **Exploración de datos** y visualización
+- **Comparación de modelos** y análisis de resultados
+- **Análisis del espacio de color CIELAB** para detección de crema
 
-## 🚀 Quick Start
+## 🚀 Inicio Rápido
 
-### 1. Setup Environment
+### 1. Configurar Entorno
 ```bash
-# Install dependencies
+# Instalar dependencias
 pip install -r requirements.txt
 
-# Activate virtual environment (if using)
+# Activar entorno virtual (si se usa)
 source meli/bin/activate  # Linux/Mac
-# or
+# o
 meli\Scripts\activate.bat  # Windows
 ```
 
-### 2. Download Images
+### 2. Descargar Imágenes
 ```bash
 python scripts/image_downloader.py
 ```
 
-### 3. Process Images
+### 3. Procesar Imágenes
 ```bash
 python scripts/image_bg_extraction.py
 ```
 
-### 4. Filter Data
+### 4. Filtrar Datos
 ```bash
 python scripts/preprocess_labels.py
 ```
 
-### 5. Apply Quality Analysis
+### 5. Aplicar Análisis de Calidad
 ```bash
 python scripts/apply_image_analyzer.py
 ```
 
-### 6. Train Models
+### 6. Entrenar Modelos
 ```bash
-# Start with logistic regression (fastest)
+# Comenzar con regresión logística (más rápido)
 python scripts/logistic_regression_classifier.py
 
-# Then try other models
+# Luego probar otros modelos
 python scripts/random_forest_classifier.py
 python scripts/simple_svc_classifier.py
 python scripts/cnn_classifier.py
 ```
 
-### 7. Evaluate Models
+### 7. Evaluar Modelos
 ```bash
-# List available models
+# Listar modelos disponibles
 python scripts/evaluate_model.py --list
 
-# Evaluate a specific model
+# Evaluar un modelo específico
 python scripts/evaluate_model.py -m models/background_logistic_regression_classifier_cv.pkl
 ```
 
-### 8. Analyze Results
+### 8. Analizar Resultados
 ```bash
 jupyter notebook notebooks/prueba_tecnica_cvc.ipynb
 ```
 
-## 📊 Key Features
+## 📊 Características Clave
 
-### Image Processing
-- **AI-powered background removal** using `rembg`
-- **Transparent foregrounds** to preserve background colors
-- **CIELAB color space** for accurate cream detection
-- **Standardized image dimensions** (512x512)
-- **Comprehensive metadata tracking**
+### Procesamiento de Imágenes
+- **Eliminación de fondo con IA** usando `rembg`
+- **Primeros planos transparentes** para preservar colores de fondo
+- **Espacio de color CIELAB** para detección precisa de crema
+- **Dimensiones de imagen estandarizadas** (512x512)
+- **Seguimiento completo de metadatos**
 
-### Machine Learning
-- **Multiple model types**: Logistic Regression, SVC, Random Forest, CNN
-- **Cross-validation** for robust evaluation
-- **Hyperparameter tuning** with grid search
-- **Feature engineering** with quality metrics
-- **Memory-efficient processing**
+### Aprendizaje Automático
+- **Múltiples tipos de modelos**: Regresión Logística, SVC, Bosque Aleatorio, CNN
+- **Validación cruzada** para evaluación robusta
+- **Ajuste de hiperparámetros** con búsqueda en cuadrícula
+- **Ingeniería de características** con métricas de calidad
+- **Procesamiento eficiente en memoria**
 
-### Evaluation & Analysis
-- **Universal model evaluator** for all trained models
-- **Comprehensive metrics** and per-class analysis
-- **Automatic logging** to timestamped files
-- **Detailed classification reports**
-- **Confidence analysis**
+### Evaluación y Análisis
+- **Evaluador universal de modelos** para todos los modelos entrenados
+- **Métricas integrales** y análisis por clase
+- **Registro automático** a archivos con marca de tiempo
+- **Reportes de clasificación detallados**
+- **Análisis de confianza**
 
-### Documentation
-- **Complete process documentation** in notebooks
-- **Model-specific READMEs** for each classifier
-- **Usage examples** and troubleshooting guides
-- **Performance comparisons** and insights
+### Documentación
+- **Documentación completa del proceso** en notebooks
+- **READMEs específicos de modelos** para cada clasificador
+- **Ejemplos de uso** y guías de solución de problemas
+- **Comparaciones de rendimiento** e insights
 
-## 🔧 Configuration
+## 🔧 Configuración
 
-### Environment Variables
-- `CUDA_VISIBLE_DEVICES`: For GPU acceleration (CNN)
-- `OMP_NUM_THREADS`: For parallel processing
+### Variables de Entorno
+- `CUDA_VISIBLE_DEVICES`: Para aceleración GPU (CNN)
+- `OMP_NUM_THREADS`: Para procesamiento paralelo
 
-### Model Parameters
-- **Fast mode**: Reduced hyperparameter search for quick testing
-- **Full mode**: Comprehensive hyperparameter optimization
-- **Memory optimization**: `float32` data types, `n_jobs=1`
+### Parámetros del Modelo
+- **Modo rápido**: Búsqueda reducida de hiperparámetros para pruebas rápidas
+- **Modo completo**: Optimización integral de hiperparámetros
+- **Optimización de memoria**: Tipos de datos `float32`, `n_jobs=1`
 
-## 📈 Performance
+## 📈 Rendimiento
 
-### Model Comparison
-| Model | Accuracy | F1-Score | Training Time | Memory Usage |
-|-------|----------|----------|---------------|--------------|
-| Logistic Regression | ~92% | ~0.92 | Fast | Low |
-| Random Forest | ~94% | ~0.94 | Medium | Medium |
-| SVC | ~93% | ~0.93 | Slow | High |
-| CNN | ~95% | ~0.95 | Medium | High |
+### Comparación de Modelos
+| Modelo | Precisión | F1-Score | Tiempo de Entrenamiento | Uso de Memoria |
+|--------|-----------|----------|-------------------------|----------------|
+| Regresión Logística | ~92% | ~0.92 | Rápido | Bajo |
+| Bosque Aleatorio | ~94% | ~0.94 | Medio | Medio |
+| SVC | ~93% | ~0.93 | Lento | Alto |
+| CNN | ~95% | ~0.95 | Medio | Alto |
 
-### Data Processing
-- **Image processing**: ~2-3 seconds per image
-- **Background removal**: ~1-2 seconds per image
-- **Quality analysis**: ~0.5 seconds per image
-- **Model training**: 5-30 minutes depending on model type
+### Procesamiento de Datos
+- **Procesamiento de imágenes**: ~2-3 segundos por imagen
+- **Eliminación de fondo**: ~1-2 segundos por imagen
+- **Análisis de calidad**: ~0.5 segundos por imagen
+- **Entrenamiento de modelos**: 5-30 minutos dependiendo del tipo de modelo
 
-## 🚨 Troubleshooting
+## 🚨 Solución de Problemas
 
-### Common Issues
-1. **Memory errors**: Use `simple_svc_classifier.py` or reduce data size
-2. **Import errors**: Check virtual environment activation
-3. **Model not found**: Verify model path with `python scripts/evaluate_model.py --list`
-4. **Data not found**: Check if preprocessing steps were completed
-5. **Script path errors**: All scripts are now in the `scripts/` directory and use project root paths
+### Problemas Comunes
+1. **Errores de memoria**: Usar `simple_svc_classifier.py` o reducir tamaño de datos
+2. **Errores de importación**: Verificar activación del entorno virtual
+3. **Modelo no encontrado**: Verificar ruta del modelo con `python scripts/evaluate_model.py --list`
+4. **Datos no encontrados**: Verificar si se completaron los pasos de preprocesamiento
+5. **Errores de ruta de script**: Todos los scripts ahora están en el directorio `scripts/` y usan rutas de raíz del proyecto
 
-### Performance Optimization
-- Use `float32` instead of `float64` for large datasets
-- Set `n_jobs=1` for memory-constrained environments
-- Use fast mode for quick testing
-- Enable GPU acceleration for CNN training
+### Optimización de Rendimiento
+- Usar `float32` en lugar de `float64` para conjuntos de datos grandes
+- Establecer `n_jobs=1` para entornos con restricciones de memoria
+- Usar modo rápido para pruebas rápidas
+- Habilitar aceleración GPU para entrenamiento CNN
 
-### Script Path Updates
-All scripts have been moved to the `scripts/` directory and updated to use project root paths. This means:
-- Scripts can be run from any directory using `python scripts/script_name.py`
-- All data paths are automatically resolved relative to the project root
-- No need to change working directory before running scripts
+### Actualizaciones de Ruta de Scripts
+Todos los scripts han sido movidos al directorio `scripts/` y actualizados para usar rutas de raíz del proyecto. Esto significa:
+- Los scripts se pueden ejecutar desde cualquier directorio usando `python scripts/script_name.py`
+- Todas las rutas de datos se resuelven automáticamente relativas a la raíz del proyecto
+- No es necesario cambiar el directorio de trabajo antes de ejecutar scripts
 
-## 📝 Logs and Documentation
+## 📝 Registros y Documentación
 
-All processes generate comprehensive logs:
-- **Training logs**: `logs/*_training_*.log`
-- **Evaluation logs**: `logs/model_evaluation_*.log`
-- **Processing logs**: Console output with progress tracking
+Todos los procesos generan registros integrales:
+- **Registros de entrenamiento**: `logs/*_training_*.log`
+- **Registros de evaluación**: `logs/model_evaluation_*.log`
+- **Registros de procesamiento**: Salida de consola con seguimiento de progreso
 
-## 🎯 Project Goals
+## 🎯 Objetivos del Proyecto
 
-1. **Automated background quality prediction** for product images
-2. **Robust machine learning pipeline** with multiple model types
-3. **Comprehensive evaluation framework** for model comparison
-4. **Scalable image processing** with AI-powered background removal
-5. **Complete documentation** and analysis for technical requirements
+1. **Predicción automatizada de calidad de fondo** para imágenes de productos
+2. **Pipeline robusto de aprendizaje automático** con múltiples tipos de modelos
+3. **Marco de evaluación integral** para comparación de modelos
+4. **Procesamiento de imágenes escalable** con eliminación de fondo con IA
+5. **Documentación completa** y análisis para requisitos técnicos
 
-## 📄 License
+## 📄 Licencia
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
 
-## 🤝 Contributing
+## 🤝 Contribución
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+1. Hacer fork del repositorio
+2. Crear una rama de características
+3. Hacer tus cambios
+4. Agregar pruebas si aplica
+5. Enviar una solicitud de pull
 
-## 📞 Support
+## 📞 Soporte
 
-For questions or issues:
-1. Check the troubleshooting section
-2. Review the logs in the `logs/` directory
-3. Consult the model-specific READMEs
-4. Open an issue on GitHub
+Para preguntas o problemas:
+1. Revisar la sección de solución de problemas
+2. Revisar los registros en el directorio `logs/`
+3. Consultar los READMEs específicos de modelos
+4. Abrir un issue en GitHub
