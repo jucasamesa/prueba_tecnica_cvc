@@ -9,6 +9,7 @@ meli
 
 # archivos de datos
 data/
+* log
 *.xlsx
 *.xls
 *.csv
