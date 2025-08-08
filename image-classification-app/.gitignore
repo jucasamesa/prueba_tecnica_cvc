@@ -9,7 +9,9 @@ meli
 
 # archivos de datos
 data/
-* log
+*.h5
+*.pkl
+*.log
 *.xlsx
 *.xls
 *.csv
