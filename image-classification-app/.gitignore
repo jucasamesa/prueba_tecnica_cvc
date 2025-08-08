@@ -19,6 +19,7 @@ models/
 *.zip
 *.pdf
 *.txt
+!requirements.txt
 *.parquet
 *.xlsb
 *.7z
