@@ -288,10 +288,10 @@ jupyter notebook notebooks/prueba_tecnica_cvc.ipynb
 ### Comparación de Modelos
 | Modelo | Precisión | F1-Score | Tiempo de Entrenamiento | Uso de Memoria |
 |--------|-----------|----------|-------------------------|----------------|
-| Regresión Logística | ~92% | ~0.92 | Rápido | Bajo |
-| Bosque Aleatorio | ~94% | ~0.94 | Medio | Medio |
-| SVC | ~93% | ~0.93 | Lento | Alto |
-| CNN | ~95% | ~0.95 | Medio | Alto |
+| Regresión Logística | ~67% | ~0.67 | Rápido | Bajo |
+| Bosque Aleatorio | ~88% | ~0.89 | Medio | Medio |
+| SVC | -- | -- | Lento | Alto |
+| CNN | ~91% | ~0.90 | Medio | Alto |
 
 ### Procesamiento de Datos
 - **Procesamiento de imágenes**: ~2-3 segundos por imagen
