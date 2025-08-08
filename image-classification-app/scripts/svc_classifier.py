@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 """
-Support Vector Classifier for Background Classification
-This script implements an SVC model using flattened background mask arrays from .npz files.
-Uses cross-validation to ensure robust and reliable results.
+SVC Classifier for Background Classification
+This script implements a Support Vector Classifier (SVC) model using flattened background mask arrays from .npz files.
+Uses cross-validation to ensure robust results.
 Uses preprocessed background_masks_data_with_labels.csv files and filtered mask arrays.
+Full hyperparameter optimization with comprehensive grid search.
 """
 
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split, GridSearchCV, cross_val_score, StratifiedKFold
+from sklearn.model_selection import cross_val_score, StratifiedKFold, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
 from sklearn.pipeline import Pipeline
 import joblib
 import warnings
+import sys
+import datetime
+from io import StringIO
 warnings.filterwarnings('ignore')
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 class BackgroundSVCClassifier:
     """
@@ -377,13 +384,14 @@ def main():
     classifier = BackgroundSVCClassifier(random_state=42)
     
     # Define paths for preprocessed and filtered data
-    masks_train_path = Path("data/train_processed/background_masks_arrays_filtered.npz")
-    mapping_train_path = Path("data/train_processed/mask_arrays_mapping_filtered.csv")
-    labels_train_path = Path("data/train_processed/background_masks_data_with_labels.csv")
+    project_root = Path(__file__).parent.parent
+    masks_train_path = project_root / "data/train_processed/background_masks_arrays_filtered.npz"
+    mapping_train_path = project_root / "data/train_processed/mask_arrays_mapping_filtered.csv"
+    labels_train_path = project_root / "data/train_processed/background_masks_data_with_labels.csv"
     
-    masks_val_path = Path("data/val_processed/background_masks_arrays_filtered.npz")
-    mapping_val_path = Path("data/val_processed/mask_arrays_mapping_filtered.csv")
-    labels_val_path = Path("data/val_processed/background_masks_data_with_labels.csv")
+    masks_val_path = project_root / "data/val_processed/background_masks_arrays_filtered.npz"
+    mapping_val_path = project_root / "data/val_processed/mask_arrays_mapping_filtered.csv"
+    labels_val_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
     
     # Check if preprocessed files exist
     if not labels_train_path.exists():
@@ -450,8 +458,9 @@ def main():
         test_results = classifier.evaluate(X_test, y_test)
         
         # Save the model
-        model_path = Path("models/background_svc_classifier_cv.pkl")
-        model_path.parent.mkdir(exist_ok=True)
+        models_dir = project_root / "models"
+        models_dir.mkdir(exist_ok=True)
+        model_path = models_dir / "background_svc_classifier_cv.pkl"
         classifier.save_model(model_path)
         
         print(f"\n🎉 SVC classifier training and evaluation completed!")

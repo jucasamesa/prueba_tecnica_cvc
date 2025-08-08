@@ -22,6 +22,9 @@ import datetime
 from io import StringIO
 warnings.filterwarnings('ignore')
 
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
 class Logger:
     """Custom logger to capture all output and save to file."""
     def __init__(self, log_file_path):
@@ -333,7 +336,8 @@ def main():
     """
     # Set up logging
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = Path("logs")
+    project_root = Path(__file__).parent.parent
+    log_dir = project_root / "logs"
     log_dir.mkdir(exist_ok=True)
     log_file_path = log_dir / f"logistic_regression_classifier_{timestamp}.log"
     
@@ -350,13 +354,13 @@ def main():
         print("=" * 80)
         
         # Define paths for preprocessed and filtered data
-        masks_train_path = Path("data/train_processed/background_masks_arrays_filtered.npz")
-        mapping_train_path = Path("data/train_processed/mask_arrays_mapping_filtered.csv")
-        labels_train_path = Path("data/train_processed/background_masks_data_with_labels.csv")
+        masks_train_path = project_root / "data/train_processed/background_masks_arrays_filtered.npz"
+        mapping_train_path = project_root / "data/train_processed/mask_arrays_mapping_filtered.csv"
+        labels_train_path = project_root / "data/train_processed/background_masks_data_with_labels.csv"
         
-        masks_val_path = Path("data/val_processed/background_masks_arrays_filtered.npz")
-        mapping_val_path = Path("data/val_processed/mask_arrays_mapping_filtered.csv")
-        labels_val_path = Path("data/val_processed/background_masks_data_with_labels.csv")
+        masks_val_path = project_root / "data/val_processed/background_masks_arrays_filtered.npz"
+        mapping_val_path = project_root / "data/val_processed/mask_arrays_mapping_filtered.csv"
+        labels_val_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
         
         # Check if preprocessed files exist
         if not labels_train_path.exists():
@@ -405,7 +409,9 @@ def main():
         trained_pipeline, results = train_logistic_regression_classifier_with_cv(X_train, y_train, cv_folds=5, fast_mode=True)
         
         # Save the model
-        model_path = Path("models/background_logistic_regression_classifier_cv.pkl")
+        models_dir = project_root / "models"
+        models_dir.mkdir(exist_ok=True)
+        model_path = models_dir / "background_logistic_regression_classifier_cv.pkl"
         save_model(trained_pipeline, model_path)
         
         # Now load validation data for final evaluation

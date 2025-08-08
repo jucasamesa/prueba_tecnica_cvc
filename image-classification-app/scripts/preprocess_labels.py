@@ -8,6 +8,10 @@ Also filters mask arrays and mapping files to only include images with valid lab
 import pandas as pd
 from pathlib import Path
 import numpy as np
+import sys
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 def preprocess_background_masks_data(data_type='train'):
     """
@@ -20,22 +24,23 @@ def preprocess_background_masks_data(data_type='train'):
     print(f"🔍 Preprocessing {data_type} background mask data...")
     
     # Define paths based on data type
+    project_root = Path(__file__).parent.parent
     if data_type == 'train':
-        background_masks_path = Path("data/train_processed/background_masks_data.csv")
-        train_images_path = Path("data/train_images_dataset.csv")
-        output_path = Path("data/train_processed/background_masks_data_with_labels.csv")
-        masks_arrays_path = Path("data/train_processed/background_masks_arrays.npz")
-        mapping_path = Path("data/train_processed/mask_arrays_mapping.csv")
-        filtered_masks_arrays_path = Path("data/train_processed/background_masks_arrays_filtered.npz")
-        filtered_mapping_path = Path("data/train_processed/mask_arrays_mapping_filtered.csv")
+        background_masks_path = project_root / "data/train_processed/background_masks_data.csv"
+        train_images_path = project_root / "data/train_images_dataset.csv"
+        output_path = project_root / "data/train_processed/background_masks_data_with_labels.csv"
+        masks_arrays_path = project_root / "data/train_processed/background_masks_arrays.npz"
+        mapping_path = project_root / "data/train_processed/mask_arrays_mapping.csv"
+        filtered_masks_arrays_path = project_root / "data/train_processed/background_masks_arrays_filtered.npz"
+        filtered_mapping_path = project_root / "data/train_processed/mask_arrays_mapping_filtered.csv"
     elif data_type == 'val':
-        background_masks_path = Path("data/val_processed/background_masks_data.csv")
-        train_images_path = Path("data/productive_images_dataset.csv")
-        output_path = Path("data/val_processed/background_masks_data_with_labels.csv")
-        masks_arrays_path = Path("data/val_processed/background_masks_arrays.npz")
-        mapping_path = Path("data/val_processed/mask_arrays_mapping.csv")
-        filtered_masks_arrays_path = Path("data/val_processed/background_masks_arrays_filtered.npz")
-        filtered_mapping_path = Path("data/val_processed/mask_arrays_mapping_filtered.csv")
+        background_masks_path = project_root / "data/val_processed/background_masks_data.csv"
+        train_images_path = project_root / "data/productive_images_dataset.csv"
+        output_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
+        masks_arrays_path = project_root / "data/val_processed/background_masks_arrays.npz"
+        mapping_path = project_root / "data/val_processed/mask_arrays_mapping.csv"
+        filtered_masks_arrays_path = project_root / "data/val_processed/background_masks_arrays_filtered.npz"
+        filtered_mapping_path = project_root / "data/val_processed/mask_arrays_mapping_filtered.csv"
     else:
         raise ValueError("data_type must be either 'train' or 'val'")
     
@@ -180,12 +185,13 @@ def main():
     if train_success and val_success:
         print(f"\n🎉 Preprocessing completed successfully!")
         print(f"📁 Output files created:")
-        print(f"   - data/train_processed/background_masks_data_with_labels.csv")
-        print(f"   - data/val_processed/background_masks_data_with_labels.csv")
-        print(f"   - data/train_processed/background_masks_arrays_filtered.npz")
-        print(f"   - data/val_processed/background_masks_arrays_filtered.npz")
-        print(f"   - data/train_processed/mask_arrays_mapping_filtered.csv")
-        print(f"   - data/val_processed/mask_arrays_mapping_filtered.csv")
+        project_root = Path(__file__).parent.parent
+        print(f"   - {project_root}/data/train_processed/background_masks_data_with_labels.csv")
+        print(f"   - {project_root}/data/val_processed/background_masks_data_with_labels.csv")
+        print(f"   - {project_root}/data/train_processed/background_masks_arrays_filtered.npz")
+        print(f"   - {project_root}/data/val_processed/background_masks_arrays_filtered.npz")
+        print(f"   - {project_root}/data/train_processed/mask_arrays_mapping_filtered.csv")
+        print(f"   - {project_root}/data/val_processed/mask_arrays_mapping_filtered.csv")
         print(f"\n📝 Next steps:")
         print(f"   1. Update the SVC classifier to use the new filtered files")
         print(f"   2. Run the SVC classifier with the preprocessed data")

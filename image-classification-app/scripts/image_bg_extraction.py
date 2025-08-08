@@ -4,11 +4,11 @@ Este script procesa todas las imágenes de datos/imágenes, elimina los fondos y
 
 Ejemplos de como usar:
 
-python image_bg_extraction.py --test --input-dir "data/images"\
+python scripts/image_bg_extraction.py --test --input-dir "data/images"\
     --output-images-dir "data/train_processed_images"\
     --output-data-dir "data/train_processed"
 
-python image_bg_extraction.py --test --input-dir "data/validation_images"\
+python scripts/image_bg_extraction.py --test --input-dir "data/validation_images"\
     --output-images-dir "data/val_processed_images"\
     --output-data-dir "data/val_processed"
 """
@@ -22,6 +22,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import colour
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 # Import rembg
 try:
@@ -73,15 +76,17 @@ def create_output_directories(processed_images_dir: str = None, processed_data_d
     Returns:
         tuple: (processed_images_dir, processed_data_dir) as Path objects
     """
+    project_root = Path(__file__).parent.parent
+    
     if processed_images_dir:
         processed_images_dir = Path(processed_images_dir)
     else:
-        processed_images_dir = Path("data/processed_images")
+        processed_images_dir = project_root / "data/processed_images"
         
     if processed_data_dir:
         processed_data_dir = Path(processed_data_dir)
     else:
-        processed_data_dir = Path("data/processed")
+        processed_data_dir = project_root / "data/processed"
     
     processed_images_dir.mkdir(parents=True, exist_ok=True)
     processed_data_dir.mkdir(parents=True, exist_ok=True)
@@ -252,10 +257,11 @@ def process_all_images(input_dir: str = None, processed_images_dir: str = None, 
     processed_images_dir, processed_data_dir = create_output_directories(processed_images_dir, processed_data_dir)
     
     # Check if input directory exists
+    project_root = Path(__file__).parent.parent
     if input_dir:
         input_dir = Path(input_dir)
     else:
-        input_dir = Path("data/images")
+        input_dir = project_root / "data/images"
         
     if not input_dir.exists():
         print(f"❌ Input directory not found: {input_dir}")
@@ -437,9 +443,10 @@ def main():
         print("\n📁 Results:")
         
         # Determine actual paths used
-        actual_input_dir = args.input_dir if args.input_dir else "data/images"
-        actual_output_images_dir = args.output_images_dir if args.output_images_dir else "data/processed_images"
-        actual_output_data_dir = args.output_data_dir if args.output_data_dir else "data/processed"
+        project_root = Path(__file__).parent.parent
+        actual_input_dir = args.input_dir if args.input_dir else str(project_root / "data/images")
+        actual_output_images_dir = args.output_images_dir if args.output_images_dir else str(project_root / "data/processed_images")
+        actual_output_data_dir = args.output_data_dir if args.output_data_dir else str(project_root / "data/processed")
         
         print(f"   - Background-only images saved to: {actual_output_images_dir}/")
         print(f"   - Background color analysis saved to: {actual_output_data_dir}/background_masks_data.csv")

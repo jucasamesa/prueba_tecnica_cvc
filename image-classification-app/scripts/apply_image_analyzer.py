@@ -15,8 +15,8 @@ import sys
 import warnings
 warnings.filterwarnings('ignore')
 
-# Add the eda_modules to the path
-sys.path.append(str(Path(__file__).parent / "eda_modules"))
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 from eda_modules.image_analyzer import ImageAnalyzer
 
@@ -114,7 +114,8 @@ def main():
     print("=" * 70)
     
     # Define paths
-    base_dir = Path("data")
+    project_root = Path(__file__).parent.parent
+    base_dir = project_root / "data"
     
     # Training dataset
     train_csv_path = base_dir / "train_processed" / "background_masks_data_with_labels.csv"

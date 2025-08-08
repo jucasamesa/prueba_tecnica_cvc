@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """
-Simple Support Vector Classifier for Background Classification
-This script implements an SVC model using flattened background mask arrays from .npz files.
+Simple SVC Classifier for Background Classification
+This script implements a Support Vector Classifier (SVC) model using flattened background mask arrays from .npz files.
 Uses cross-validation to ensure robust results.
 Uses preprocessed background_masks_data_with_labels.csv files and filtered mask arrays.
-
-FAST MODE: Set fast_mode=True in train_svc_classifier_with_cv() for quick testing
-with minimal hyperparameters (1 combination × 5 folds = 5 total fits).
+Optimized for speed with reduced hyperparameter search.
 """
 
 import numpy as np
@@ -21,7 +19,11 @@ import joblib
 import warnings
 import sys
 import datetime
+from io import StringIO
 warnings.filterwarnings('ignore')
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 class Logger:
     """Custom logger to capture all output and save to file."""
@@ -271,7 +273,6 @@ def train_svc_classifier_with_cv(X, y, cv_folds=5, random_state=42, fast_mode=Fa
     # Print confusion matrix
     print("\n📊 Confusion Matrix (Test Set):")
     cm = confusion_matrix(y_test, y_pred)
-    print(cm)
     
     evaluation_results = {
         'cv_accuracy_mean': cv_accuracy.mean(),
@@ -312,9 +313,10 @@ def main():
     """
     # Set up logging
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = Path("logs")
+    project_root = Path(__file__).parent.parent
+    log_dir = project_root / "logs"
     log_dir.mkdir(exist_ok=True)
-    log_file_path = log_dir / f"svc_classifier_{timestamp}.log"
+    log_file_path = log_dir / f"simple_svc_classifier_{timestamp}.log"
     
     # Redirect stdout to both terminal and log file
     original_stdout = sys.stdout
@@ -329,13 +331,13 @@ def main():
         print("=" * 70)
         
         # Define paths for preprocessed and filtered data
-        masks_train_path = Path("data/train_processed/background_masks_arrays_filtered.npz")
-        mapping_train_path = Path("data/train_processed/mask_arrays_mapping_filtered.csv")
-        labels_train_path = Path("data/train_processed/background_masks_data_with_labels.csv")
+        masks_train_path = project_root / "data/train_processed/background_masks_arrays_filtered.npz"
+        mapping_train_path = project_root / "data/train_processed/mask_arrays_mapping_filtered.csv"
+        labels_train_path = project_root / "data/train_processed/background_masks_data_with_labels.csv"
         
-        masks_val_path = Path("data/val_processed/background_masks_arrays_filtered.npz")
-        mapping_val_path = Path("data/val_processed/mask_arrays_mapping_filtered.csv")
-        labels_val_path = Path("data/val_processed/background_masks_data_with_labels.csv")
+        masks_val_path = project_root / "data/val_processed/background_masks_arrays_filtered.npz"
+        mapping_val_path = project_root / "data/val_processed/mask_arrays_mapping_filtered.csv"
+        labels_val_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
         
         # Check if preprocessed files exist
         if not labels_train_path.exists():
@@ -384,7 +386,9 @@ def main():
         trained_pipeline, results = train_svc_classifier_with_cv(X_train, y_train, cv_folds=5, fast_mode=True)
         
         # Save the model
-        model_path = Path("models/background_svc_classifier_cv.pkl")
+        models_dir = project_root / "models"
+        models_dir.mkdir(exist_ok=True)
+        model_path = models_dir / "background_svc_classifier_cv.pkl"
         save_model(trained_pipeline, model_path)
         
         # Now load validation data for final evaluation
@@ -415,7 +419,6 @@ def main():
         # Print confusion matrix for validation
         print("\n📊 Confusion Matrix (Validation Set):")
         val_cm = confusion_matrix(y_val, y_val_pred)
-        print(val_cm)
         
         print(f"\n🎉 SVC classifier training and evaluation completed!")
         print(f"📁 Model saved to: {model_path}")

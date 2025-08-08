@@ -304,14 +304,21 @@ jupyter notebook notebooks/prueba_tecnica_cvc.ipynb
 ### Common Issues
 1. **Memory errors**: Use `simple_svc_classifier.py` or reduce data size
 2. **Import errors**: Check virtual environment activation
-3. **Model not found**: Verify model path with `python evaluate_model.py --list`
+3. **Model not found**: Verify model path with `python scripts/evaluate_model.py --list`
 4. **Data not found**: Check if preprocessing steps were completed
+5. **Script path errors**: All scripts are now in the `scripts/` directory and use project root paths
 
 ### Performance Optimization
 - Use `float32` instead of `float64` for large datasets
 - Set `n_jobs=1` for memory-constrained environments
 - Use fast mode for quick testing
 - Enable GPU acceleration for CNN training
+
+### Script Path Updates
+All scripts have been moved to the `scripts/` directory and updated to use project root paths. This means:
+- Scripts can be run from any directory using `python scripts/script_name.py`
+- All data paths are automatically resolved relative to the project root
+- No need to change working directory before running scripts
 
 ## 📝 Logs and Documentation
 

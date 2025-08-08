@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """
-CNN Classifier for Background Quality Prediction
-This script implements a Convolutional Neural Network (CNN) for background quality classification.
-Uses the processed images (resized and with rembg applied) for training.
-Designed for image-based background quality prediction with spatial pattern recognition.
+CNN Classifier for Background Classification
+This script implements a Convolutional Neural Network (CNN) model for background quality prediction.
+Uses image-based learning (not just flattened arrays) for better feature extraction.
+Includes data augmentation, early stopping, and learning rate reduction.
+
+Usage:
+    python scripts/cnn_classifier.py --mode fast    # Fast mode (smaller model, faster training)
+    python scripts/cnn_classifier.py --mode full    # Full mode (larger model, better performance)
+    python scripts/cnn_classifier.py                # Default: fast mode
 """
 
 import numpy as np
@@ -13,16 +18,19 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models, optimizers, callbacks
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, train_test_split
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, f1_score
-import matplotlib.pyplot as plt
-import seaborn as sns
-import cv2
+import joblib
 import warnings
 import sys
 import datetime
-import os
+import cv2
+import matplotlib.pyplot as plt
+import argparse
 warnings.filterwarnings('ignore')
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
 
 # Set random seeds for reproducibility
 np.random.seed(42)
@@ -434,10 +442,37 @@ def main():
     """
     Main function to demonstrate the CNN classifier with cross-validation.
     """
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(
+        description='CNN Classifier for Background Classification using Cross-Validation',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python scripts/cnn_classifier.py --mode fast    # Fast mode (smaller model, faster training)
+    python scripts/cnn_classifier.py --mode full    # Full mode (larger model, better performance)
+    python scripts/cnn_classifier.py                # Default: fast mode
+        """
+    )
+    
+    parser.add_argument(
+        '--mode', 
+        type=str, 
+        choices=['fast', 'full'], 
+        default='fast',
+        help='Training mode: fast (smaller model, faster training) or full (larger model, better performance)'
+    )
+    
+    args = parser.parse_args()
+    
+    # Convert mode to boolean
+    fast_mode = args.mode == 'fast'
+    
+    # Set up logging
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = Path("logs")
+    project_root = Path(__file__).parent.parent
+    log_dir = project_root / "logs"
     log_dir.mkdir(exist_ok=True)
-    log_file_path = log_dir / f"cnn_classifier_{timestamp}.log"
+    log_file_path = log_dir / f"cnn_classifier_{args.mode}_{timestamp}.log"
     
     original_stdout = sys.stdout
     logger = Logger(log_file_path)
@@ -448,14 +483,15 @@ def main():
         print("=" * 80)
         print(f"📝 Log file: {log_file_path}")
         print(f"🕒 Started at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"🎛️  Mode: {args.mode.upper()}")
         print("=" * 80)
         
         # Define paths for processed data
-        train_csv_path = Path("data/train_processed/background_masks_data_with_labels.csv")
-        train_images_dir = Path("data/train_processed_images")
+        train_csv_path = project_root / "data/train_processed/background_masks_data_with_labels.csv"
+        train_images_dir = project_root / "data/train_processed_images"
         
-        val_csv_path = Path("data/val_processed/background_masks_data_with_labels.csv")
-        val_images_dir = Path("data/val_processed_images")
+        val_csv_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
+        val_images_dir = project_root / "data/val_processed_images"
         
         # Check if files exist
         if not train_csv_path.exists():
@@ -490,18 +526,24 @@ def main():
             print(f"\n📊 Training dataset: {X_train.shape[0]} samples, {X_train.shape[1]}x{X_train.shape[2]}x{X_train.shape[3]} images")
             
             # Train the CNN classifier with cross-validation
-            print("\n🚀 Training CNN classifier with cross-validation...")
-            print("⚡ Using FAST MODE for quick training")
+            print(f"\n🚀 Training CNN classifier with cross-validation...")
+            if fast_mode:
+                print("⚡ Using FAST MODE - smaller model for faster training")
+            else:
+                print("🔍 Using FULL MODE - larger model for better performance")
+            
             trained_model, results = train_cnn_with_cv(
                 X_train, y_train, 
                 cv_folds=5, 
-                fast_mode=True, 
+                fast_mode=fast_mode, 
                 epochs=10, 
                 batch_size=32
             )
             
             # Save the model
-            model_path = Path("models/background_cnn_classifier_cv.h5")
+            models_dir = project_root / "models"
+            models_dir.mkdir(exist_ok=True)
+            model_path = models_dir / f"background_cnn_classifier_{args.mode}.h5"
             save_model(trained_model, model_path)
             
             # Now load validation data for final evaluation
@@ -540,6 +582,7 @@ def main():
             print(f"📁 Model saved to: {model_path}")
             print(f"📝 Log saved to: {log_file_path}")
             print(f"\n📊 Final Results Summary:")
+            print(f"   - Mode Used: {args.mode.upper()}")
             print(f"   - Cross-validation Accuracy: {results['cv_accuracy_mean']:.4f} (+/- {results['cv_accuracy_std'] * 2:.4f})")
             print(f"   - Cross-validation F1 Score: {results['cv_f1_mean']:.4f} (+/- {results['cv_f1_std'] * 2:.4f})")
             print(f"   - Test Set Accuracy: {results['test_accuracy']:.4f}")

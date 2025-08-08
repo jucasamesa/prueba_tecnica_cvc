@@ -3,6 +3,14 @@
 General Model Evaluator for Validation Data
 This script loads any trained model and evaluates it on validation data.
 Supports all trained models: Logistic Regression, SVC, Random Forest, CNN, etc.
+
+Usage:
+    python scripts/evaluate_model.py --list                    # List available models
+    python scripts/evaluate_model.py --model model_name.pkl    # Evaluate specific model
+    python scripts/evaluate_model.py                           # Evaluate first available model
+    python scripts/evaluate_model.py --no-log                  # Don't save logs to file
+
+eg. scripts/python evaluate_model.py --model "background_logistic_regression_classifier_cv.pkl"
 """
 
 import numpy as np
@@ -15,6 +23,7 @@ import sys
 import datetime
 import argparse
 import os
+import cv2
 warnings.filterwarnings('ignore')
 
 # Add parent directory to path for imports
@@ -39,9 +48,12 @@ class Logger:
     def close(self):
         self.log.close()
 
-def load_validation_data():
+def load_validation_data(model_type=None):
     """
-    Load validation data for evaluation.
+    Load validation data for evaluation based on model type.
+    
+    Args:
+        model_type (str): Type of model to determine data loading strategy
     
     Returns:
         tuple: (X_val, y_val) validation features and labels
@@ -50,6 +62,29 @@ def load_validation_data():
     
     # Define paths for validation data (relative to project root)
     project_root = Path(__file__).parent.parent
+    
+    # Check if we need to load specific features (for Random Forest with features)
+    if model_type and "random_forest" in model_type.lower() and "features" in model_type.lower():
+        print("📊 Loading validation data for Random Forest with ImageAnalyzer features...")
+        return load_validation_data_features(project_root)
+    
+    # Check if we need to load images (for CNN)
+    elif model_type and "cnn" in model_type.lower():
+        print("🖼️  Loading validation data for CNN...")
+        return load_validation_data_images(project_root)
+    
+    # Default: load flattened arrays (for Logistic Regression, SVC, etc.)
+    else:
+        print("📊 Loading validation data for flattened arrays...")
+        return load_validation_data_arrays(project_root)
+
+def load_validation_data_arrays(project_root):
+    """
+    Load validation data as flattened arrays (for Logistic Regression, SVC, etc.).
+    
+    Returns:
+        tuple: (X_val, y_val) validation features and labels
+    """
     masks_val_path = project_root / "data/val_processed/background_masks_arrays_filtered.npz"
     mapping_val_path = project_root / "data/val_processed/mask_arrays_mapping_filtered.csv"
     labels_val_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
@@ -129,6 +164,188 @@ def load_validation_data():
     
     return X_val, y_val
 
+def resize_validation_data(X_val, expected_features):
+    """
+    Resize validation data to match the expected number of features.
+    
+    Args:
+        X_val (np.array): Validation features
+        expected_features (int): Expected number of features
+    
+    Returns:
+        np.array: Resized validation features
+    """
+    current_features = X_val.shape[1]
+    
+    if current_features == expected_features:
+        print(f"✅ Validation data already has the correct size: {current_features} features")
+        return X_val
+    
+    print(f"🔄 Resizing validation data from {current_features} to {expected_features} features...")
+    
+    if current_features > expected_features:
+        # Need to downsample - take first expected_features
+        print(f"   Downsampling: taking first {expected_features} features")
+        X_val_resized = X_val[:, :expected_features]
+    else:
+        # Need to upsample - pad with zeros
+        print(f"   Upsampling: padding with zeros to {expected_features} features")
+        X_val_resized = np.zeros((X_val.shape[0], expected_features), dtype=np.float32)
+        X_val_resized[:, :current_features] = X_val
+    
+    print(f"✅ Resized validation data shape: {X_val_resized.shape}")
+    return X_val_resized
+
+def load_validation_data_features(project_root):
+    """
+    Load validation data with specific ImageAnalyzer features (for Random Forest with features).
+    
+    Returns:
+        tuple: (X_val, y_val) validation features and labels
+    """
+    csv_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
+    
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Validation CSV not found at {csv_path}")
+    
+    # Load the CSV data
+    df = pd.read_csv(csv_path)
+    print(f"✅ Loaded CSV with {len(df)} entries")
+    
+    # Check if the required columns exist
+    required_features = [
+        'brightness', 'contrast', 'entropy', 'noise_level', 'saturation', 'value',
+        'dominant_color_r', 'dominant_color_g', 'dominant_color_b', 
+        'dominant_color_h', 'dominant_color_s', 'dominant_color_v'
+    ]
+    
+    missing_features = [col for col in required_features if col not in df.columns]
+    if missing_features:
+        raise ValueError(f"Missing required features: {missing_features}")
+    
+    # Check if target column exists
+    if 'correct_background?' not in df.columns:
+        raise ValueError("Missing target column 'correct_background?'")
+    
+    # Select only the required features
+    X = df[required_features].copy()
+    y = df['correct_background?'].copy()
+    
+    # Handle missing values
+    missing_count = X.isnull().sum().sum()
+    if missing_count > 0:
+        print(f"⚠️  Found {missing_count} missing values. Filling with median...")
+        X = X.fillna(X.median())
+    
+    # Convert to numpy arrays
+    X_val = X.values.astype(np.float32)
+    y_val = y.values.astype(np.int8)
+    
+    print(f"✅ Prepared {len(X_val)} samples with {X_val.shape[1]} features")
+    print(f"✅ Target distribution: {np.bincount(y_val)}")
+    
+    return X_val, y_val
+
+def load_validation_data_images(project_root):
+    """
+    Load validation data as images (for CNN).
+    
+    Returns:
+        tuple: (X_val, y_val) validation features and labels
+    """
+    csv_path = project_root / "data/val_processed/background_masks_data_with_labels.csv"
+    images_dir = project_root / "data/val_processed_images"
+    target_size = (224, 224)
+    
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Validation CSV not found at {csv_path}")
+    
+    if not images_dir.exists():
+        raise FileNotFoundError(f"Validation images directory not found at {images_dir}")
+    
+    # Load the CSV file
+    df = pd.read_csv(csv_path)
+    print(f"✅ Loaded {len(df)} entries from {csv_path.name}")
+    
+    # Check if required columns exist
+    required_columns = ['processed_image_name', 'correct_background?']
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"Missing required columns in CSV file: {missing_columns}")
+    
+    # Prepare data
+    X_list = []
+    y_list = []
+    processed_count = 0
+    skipped_count = 0
+    
+    print(f"🔄 Processing {len(df)} images...")
+    
+    for idx, row in df.iterrows():
+        try:
+            # Get the processed image path
+            processed_image_name = row['processed_image_name']
+            image_path = images_dir / processed_image_name
+            
+            # Check if image exists
+            if not image_path.exists():
+                print(f"⚠️  Warning: Image not found: {image_path}")
+                skipped_count += 1
+                continue
+            
+            # Load and preprocess the image
+            image = cv2.imread(str(image_path))
+            if image is None:
+                print(f"⚠️  Warning: Could not load image: {image_path}")
+                skipped_count += 1
+                continue
+            
+            # Convert BGR to RGB
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            
+            # Resize image to target size
+            image_resized = cv2.resize(image_rgb, target_size)
+            
+            # Normalize pixel values to [0, 1]
+            image_normalized = image_resized.astype(np.float32) / 255.0
+            
+            # Get the label
+            label = row['correct_background?']
+            
+            # Convert label to numeric if needed
+            if isinstance(label, str):
+                if label == '1':
+                    label = 1
+                elif label == '0':
+                    label = 0
+                else:
+                    print(f"⚠️  Warning: Unknown label value {label} for {processed_image_name}")
+                    skipped_count += 1
+                    continue
+            
+            X_list.append(image_normalized)
+            y_list.append(label)
+            processed_count += 1
+            
+        except Exception as e:
+            print(f"⚠️  Warning: Error processing image {row.get('processed_image_name', 'unknown')}: {e}")
+            skipped_count += 1
+            continue
+    
+    print(f"✅ Processed {processed_count} images, skipped {skipped_count} images")
+    
+    if not X_list:
+        raise ValueError("No valid images found!")
+    
+    # Convert to numpy arrays
+    X_val = np.array(X_list, dtype=np.float32)
+    y_val = np.array(y_list, dtype=np.int8)
+    
+    print(f"✅ Final dataset: {X_val.shape[0]} samples, {X_val.shape[1]}x{X_val.shape[2]}x{X_val.shape[3]} images")
+    print(f"✅ Target distribution: {np.bincount(y_val)}")
+    
+    return X_val, y_val
+
 def evaluate_model(model_path, X_val, y_val):
     """
     Evaluate the trained model on validation data.
@@ -159,6 +376,23 @@ def evaluate_model(model_path, X_val, y_val):
         
     except Exception as e:
         raise Exception(f"Failed to load model: {e}")
+    
+    # Check if we need to resize the validation data
+    if hasattr(model, 'n_features_in_'):
+        expected_features = model.n_features_in_
+        print(f"📊 Model expects {expected_features} features")
+        
+        if X_val.shape[1] != expected_features:
+            X_val = resize_validation_data(X_val, expected_features)
+    elif hasattr(model, 'steps') and len(model.steps) > 0:
+        # It's a pipeline, check the first step (usually scaler)
+        first_step = model.steps[0][1]
+        if hasattr(first_step, 'n_features_in_'):
+            expected_features = first_step.n_features_in_
+            print(f"📊 Model pipeline expects {expected_features} features")
+            
+            if X_val.shape[1] != expected_features:
+                X_val = resize_validation_data(X_val, expected_features)
     
     # Make predictions
     print("🚀 Making predictions on validation data...")
@@ -273,28 +507,61 @@ def get_available_models():
         return []
     
     model_files = list(models_dir.glob("*.pkl"))
-    return model_files
+    return sorted(model_files)  # Sort for consistent ordering
 
 def main():
     """
     Main function to evaluate any trained model.
     """
-    parser = argparse.ArgumentParser(description="Evaluate any trained model on validation data")
-    parser.add_argument("--model", "-m", type=str, help="Path to the model file to evaluate")
-    parser.add_argument("--list", "-l", action="store_true", help="List available models")
-    parser.add_argument("--no-log", action="store_true", help="Don't save logs to file")
+    parser = argparse.ArgumentParser(
+        description="Evaluate any trained model on validation data",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    python scripts/evaluate_model.py --list                    # List available models
+    python scripts/evaluate_model.py --model model_name.pkl    # Evaluate specific model
+    python scripts/evaluate_model.py                           # Evaluate first available model
+    python scripts/evaluate_model.py --no-log                  # Don't save logs to file
+        """
+    )
+    
+    parser.add_argument(
+        "--model", "-m", 
+        type=str, 
+        help="Name or path of the model file to evaluate (e.g., 'background_random_forest_classifier_features_fast.pkl')"
+    )
+    parser.add_argument(
+        "--list", "-l", 
+        action="store_true", 
+        help="List all available trained models in the models/ directory"
+    )
+    parser.add_argument(
+        "--no-log", 
+        action="store_true", 
+        help="Don't save evaluation logs to file (output only to terminal)"
+    )
     
     args = parser.parse_args()
     
     # List available models if requested
     if args.list:
         print("📁 Available trained models:")
+        print("="*50)
         available_models = get_available_models()
         if available_models:
             for i, model_path in enumerate(available_models, 1):
-                print(f"   {i}. {model_path.name}")
+                # Get file size
+                size_mb = model_path.stat().st_size / (1024 * 1024)
+                print(f"   {i:2d}. {model_path.name} ({size_mb:.1f} MB)")
+            print(f"\nTotal: {len(available_models)} model(s) found")
+            print("\nTo evaluate a specific model, use:")
+            print("   python scripts/evaluate_model.py --model model_name.pkl")
         else:
             print("   No trained models found in models/ directory")
+            print("\nPlease train a model first using one of the classifier scripts:")
+            print("   python scripts/random_forest_classifier.py --mode fast")
+            print("   python scripts/logistic_regression_classifier.py")
+            print("   python scripts/simple_svc_classifier.py --mode fast")
         return
     
     # Set up logging
@@ -320,13 +587,21 @@ def main():
         
         # Determine model path
         if args.model:
+            # Check if it's a full path or just a filename
             model_path = Path(args.model)
+            if not model_path.is_absolute():
+                # It's a filename, look in models directory
+                project_root = Path(__file__).parent.parent
+                model_path = project_root / "models" / args.model
         else:
             # Try to find the most recent model
             available_models = get_available_models()
             if not available_models:
                 print("❌ No trained models found in models/ directory")
-                print("Please train a model first or specify a model path with --model")
+                print("\nPlease train a model first or specify a model path with --model")
+                print("\nAvailable options:")
+                print("   python scripts/evaluate_model.py --list                    # List available models")
+                print("   python scripts/evaluate_model.py --model model_name.pkl    # Evaluate specific model")
                 return
             
             # Use the first available model
@@ -335,14 +610,33 @@ def main():
         
         if not model_path.exists():
             print(f"❌ Model not found at {model_path}")
-            print("Available models:")
+            print("\nAvailable models:")
             available_models = get_available_models()
             for model_file in available_models:
-                print(f"   - {model_file}")
+                print(f"   - {model_file.name}")
+            print(f"\nUse --list to see all available models")
             return
         
-        # Load validation data
-        X_val, y_val = load_validation_data()
+        # Detect model type from filename
+        model_name = model_path.name.lower()
+        model_type = None
+        
+        if "random_forest" in model_name and "features" in model_name:
+            model_type = "random_forest_features"
+        elif "cnn" in model_name:
+            model_type = "cnn"
+        elif "logistic_regression" in model_name:
+            model_type = "logistic_regression"
+        elif "svc" in model_name:
+            model_type = "svc"
+        else:
+            # Default to arrays for unknown models
+            model_type = "arrays"
+        
+        print(f"🔍 Detected model type: {model_type}")
+        
+        # Load validation data based on model type
+        X_val, y_val = load_validation_data(model_type)
         
         # Evaluate model
         results = evaluate_model(model_path, X_val, y_val)
@@ -351,7 +645,7 @@ def main():
         print_evaluation_results(results)
         
         print(f"\n✅ Evaluation completed successfully!")
-        print(f"📁 Model evaluated: {model_path}")
+        print(f"📁 Model evaluated: {model_path.name}")
         print(f"📊 Validation samples: {len(y_val)}")
         if not args.no_log:
             print(f"📝 Log saved to: {log_file_path}")
