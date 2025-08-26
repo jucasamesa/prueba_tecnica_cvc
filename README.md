@@ -290,7 +290,7 @@ jupyter notebook notebooks/prueba_tecnica_cvc.ipynb
 |--------|-----------|----------|-------------------------|----------------|
 | Regresión Logística | ~67% | ~0.67 | Rápido | Bajo |
 | Bosque Aleatorio | ~88% | ~0.89 | Medio | Medio |
-| SVC | 94% | 94% | Muy Lento | Alto |
+| SVC | ~94% | ~94% | MuyLento | Alto |
 | CNN | ~91% | ~0.90 | Medio | Alto |
 
 ### Procesamiento de Datos
